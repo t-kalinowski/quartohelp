@@ -30,3 +30,6 @@ Imports:
     stringi
 Remotes:
     tidyverse/ragnar
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+

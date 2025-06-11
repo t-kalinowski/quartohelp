@@ -7,7 +7,7 @@
 update_store()
 }
 \value{
-`NULL` invisibly.
+\code{NULL} invisibly.
 }
 \description{
 It always downloads the latest version of the store from the
@@ -15,8 +15,10 @@ quartohelp GitHub repository.
 }
 \details{
 The download location can be configured with a few environment variables:
-- `QUARTOHELP_STORE_URL`: a custom URL to download the store from. The default is to downlaod the latest store
-from the `t-kalinowski/quartohelp` repository in the `store` release.
-- `QUARTOHELP_STORE_RELEASE`: the release tag to download the store from. Defaults to `store`.
-- `QUARTOHELP_STORE_REPOSITORY`: the repository to download the store from. Defaults to `t-kalinowski/quartohelp`.
+\itemize{
+\item \code{QUARTOHELP_STORE_URL}: a custom URL to download the store from. The default is to downlaod the latest store
+from the \code{t-kalinowski/quartohelp} repository in the \code{store} release.
+\item \code{QUARTOHELP_STORE_RELEASE}: the release tag to download the store from. Defaults to \code{store}.
+\item \code{QUARTOHELP_STORE_REPOSITORY}: the repository to download the store from. Defaults to \code{t-kalinowski/quartohelp}.
+}
 }
