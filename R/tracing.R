@@ -12,20 +12,12 @@ register_langfuse_tracing <- function(chat) {
     stop("`chat` must inherit from 'Chat'.", call. = FALSE)
   }
 
-  get_model_name <- function(obj) {
-    default_model <- "gpt-5.1"
-    
-    # Try to extract model from chat object's private provider
-    extracted_model <- tryCatch(
-      obj$.__enclos_env__$private$provider$model,
-      error = function(e) NULL
-    )
-    
-    # Return extracted model if valid, otherwise use default
-    extracted_model %||% default_model
-  }
-
-  model_name <- get_model_name(chat)
+  # Get model name from chat object
+  model_name <- tryCatch(
+    chat$.__enclos_env__$private$provider$model,
+    error = function(e) "gpt-5.1"
+  ) %||%
+    "gpt-5.1"
 
   # Create an environment to store span state across callbacks
   trace_env <- new.env(parent = emptyenv())
@@ -70,39 +62,11 @@ setup_conversation_tracing <- function(module, session) {
   trace_env <- new.env(parent = emptyenv())
   trace_env$last_input <- NULL
 
-  get_model_name <- function(obj) {
-    default_model <- "gpt-5.1"
-    
-    # Try to extract model from chat object's private provider
-    extracted_model <- tryCatch(
-      obj$.__enclos_env__$private$provider$model,
-      error = function(e) NULL
-    )
-    
-    # Return extracted model if valid, otherwise use default
-    extracted_model %||% default_model
-  }
-
-  safe_text <- function(turn) {
-    tryCatch(
-      {
-        if (is.character(turn)) {
-          turn
-        } else if (inherits(turn, "Turn") || inherits(turn, "S7_object")) {
-          txt <- tryCatch(turn@text, error = function(e) NULL)
-          if (is.null(txt) || !nzchar(txt)) {
-            txt <- paste(utils::capture.output(print(turn)), collapse = "\n")
-          }
-          txt
-        } else {
-          paste(utils::capture.output(print(turn)), collapse = "\n")
-        }
-      },
-      error = function(e) "<response>"
-    )
-  }
-
-  model_name <- get_model_name(module$client)
+  model_name <- tryCatch(
+    module$client$.__enclos_env__$private$provider$model,
+    error = function(e) "gpt-5.1"
+  ) %||%
+    "gpt-5.1"
 
   shiny::observeEvent(
     module$last_input(),
@@ -123,7 +87,22 @@ setup_conversation_tracing <- function(module, session) {
         return()
       }
 
-      response_text <- safe_text(turn)
+      response_text <- tryCatch(
+        {
+          if (is.character(turn)) {
+            turn
+          } else if (inherits(turn, "Turn") || inherits(turn, "S7_object")) {
+            txt <- tryCatch(turn@text, error = function(e) NULL)
+            if (is.null(txt) || !nzchar(txt)) {
+              txt <- paste(utils::capture.output(print(turn)), collapse = "\n")
+            }
+            txt
+          } else {
+            paste(utils::capture.output(print(turn)), collapse = "\n")
+          }
+        },
+        error = function(e) "<response>"
+      )
 
       input_text <- trace_env$last_input %||% "<user question>"
 
