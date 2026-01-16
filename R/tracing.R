@@ -5,7 +5,7 @@
 #' "generations".
 #'
 #' @param chat An ellmer::Chat object
-#' @return The chat object (invisibly), modified with tracing callbacks
+#' @return The chat object, modified with tracing callbacks
 #' @keywords internal
 register_langfuse_tracing <- function(chat) {
   if (!inherits(chat, "Chat")) {
@@ -13,10 +13,16 @@ register_langfuse_tracing <- function(chat) {
   }
 
   get_model_name <- function(obj) {
-    tryCatch(
+    default_model <- "gpt-5.1"
+    
+    # Try to extract model from chat object's private provider
+    extracted_model <- tryCatch(
       obj$.__enclos_env__$private$provider$model,
-      error = function(e) "gpt-5.1-2025-11-13"
-    ) %||% "gpt-5.1-2025-11-13"
+      error = function(e) NULL
+    )
+    
+    # Return extracted model if valid, otherwise use default
+    extracted_model %||% default_model
   }
 
   model_name <- get_model_name(chat)
@@ -65,10 +71,16 @@ setup_conversation_tracing <- function(module, session) {
   trace_env$last_input <- NULL
 
   get_model_name <- function(obj) {
-    tryCatch(
+    default_model <- "gpt-5.1"
+    
+    # Try to extract model from chat object's private provider
+    extracted_model <- tryCatch(
       obj$.__enclos_env__$private$provider$model,
-      error = function(e) "gpt-4o"
-    ) %||% "gpt-4o"
+      error = function(e) NULL
+    )
+    
+    # Return extracted model if valid, otherwise use default
+    extracted_model %||% default_model
   }
 
   safe_text <- function(turn) {
