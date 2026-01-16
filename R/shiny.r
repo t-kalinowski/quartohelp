@@ -329,6 +329,11 @@ quartohelp_app_server <- function(
         }
         module <- shinychat::chat_mod_server(module_id, chat())
 
+        # Set up Langfuse tracing for conversation if enabled
+        if (otel::is_tracing_enabled()) {
+          setup_conversation_tracing(module, session)
+        }
+
         question <- pending_question()
         if (!is.null(question)) {
           pending_question(NULL)

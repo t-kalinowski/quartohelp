@@ -19,6 +19,7 @@ Imports:
     dplyr,
     ellmer (>= 0.3.2.9000),
     fs,
+    otel,
     promises,
     ragnar (>= 0.2.0),
     Rapp (>= 0.2.0.9000),

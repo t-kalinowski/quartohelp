@@ -89,6 +89,11 @@ as_quartohelp_chat <- function(
 
   ragnar::ragnar_register_tool_retrieve(chat, store, top_k = top_k)
 
+  # Register OpenTelemetry tracing callbacks for Langfuse if tracing is enabled
+  if (otel::is_tracing_enabled()) {
+    register_langfuse_tracing(chat)
+  }
+
   chat
 }
 
