@@ -32,7 +32,7 @@ register_langfuse_tracing <- function(chat) {
         model = model_name,
         `gen_ai.request.model` = model_name,
         `gen_ai.system` = "openai",
-        `tool.name` = request$name %||% "unknown"
+        `tool.name` = request@name %||% "unknown"
       )
     )
     trace_env$current_span <- span
