@@ -12,18 +12,20 @@ register_langfuse_tracing <- function(chat) {
     stop("`chat` must inherit from 'Chat'.", call. = FALSE)
   }
 
-  # Get model name from chat object
-  model_name <- tryCatch(
-    chat$.__enclos_env__$private$provider$model,
-    error = function(e) "gpt-4o"
-  ) %||%
-    "gpt-4o"
+  get_model_name <- function(obj) {
+    tryCatch(
+      obj$.__enclos_env__$private$provider$model,
+      error = function(e) "gpt-5.1-2025-11-13"
+    ) %||% "gpt-5.1-2025-11-13"
+  }
+
+  model_name <- get_model_name(chat)
 
   # Create an environment to store span state across callbacks
   trace_env <- new.env(parent = emptyenv())
   trace_env$current_span <- NULL
 
-  # Register callback for tool requests (called when LLM requests a tool)
+  # Register callback for tool requests
   chat$on_tool_request(function(request) {
     # Start a span for the tool call
     span <- otel::start_span(
@@ -38,7 +40,7 @@ register_langfuse_tracing <- function(chat) {
     trace_env$current_span <- span
   })
 
-  # Register callback for tool results (called when tool returns)
+  # Register callback for tool results
   chat$on_tool_result(function(result) {
     if (!is.null(trace_env$current_span)) {
       otel::end_span(trace_env$current_span)
@@ -62,11 +64,33 @@ setup_conversation_tracing <- function(module, session) {
   trace_env <- new.env(parent = emptyenv())
   trace_env$last_input <- NULL
 
-  model_name <- tryCatch(
-    module$client$.__enclos_env__$private$provider$model,
-    error = function(e) "gpt-4o"
-  ) %||%
-    "gpt-4o"
+  get_model_name <- function(obj) {
+    tryCatch(
+      obj$.__enclos_env__$private$provider$model,
+      error = function(e) "gpt-4o"
+    ) %||% "gpt-4o"
+  }
+
+  safe_text <- function(turn) {
+    tryCatch(
+      {
+        if (is.character(turn)) {
+          turn
+        } else if (inherits(turn, "Turn") || inherits(turn, "S7_object")) {
+          txt <- tryCatch(turn@text, error = function(e) NULL)
+          if (is.null(txt) || !nzchar(txt)) {
+            txt <- paste(utils::capture.output(print(turn)), collapse = "\n")
+          }
+          txt
+        } else {
+          paste(utils::capture.output(print(turn)), collapse = "\n")
+        }
+      },
+      error = function(e) "<response>"
+    )
+  }
+
+  model_name <- get_model_name(module$client)
 
   shiny::observeEvent(
     module$last_input(),
@@ -87,22 +111,7 @@ setup_conversation_tracing <- function(module, session) {
         return()
       }
 
-      response_text <- tryCatch(
-        {
-          if (is.character(turn)) {
-            turn
-          } else if (inherits(turn, "Turn") || inherits(turn, "S7_object")) {
-            txt <- tryCatch(turn@text, error = function(e) NULL)
-            if (is.null(txt) || !nzchar(txt)) {
-              txt <- paste(utils::capture.output(print(turn)), collapse = "\n")
-            }
-            txt
-          } else {
-            paste(utils::capture.output(print(turn)), collapse = "\n")
-          }
-        },
-        error = function(e) "<response>"
-      )
+      response_text <- safe_text(turn)
 
       input_text <- trace_env$last_input %||% "<user question>"
 
