@@ -31,6 +31,8 @@ jobs:
                   extra-packages: |
                       local::.
                       tidyverse/vitals
+                      any::readr
+                      any::rsconnect
                   needs: check
 
             - name: Download ragnar store
@@ -80,7 +82,7 @@ jobs:
                     )
 
                     # Output the URL
-                    cat("DEPLOY_URL=", rsconnect::deployments("./quarto_eval_bundle")$url[1], "\n", 
+                    cat("DEPLOY_URL=", rsconnect::deployments("./quarto_eval_bundle")$url[1], "\n",
                         file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE, sep = "")
                   '
 
