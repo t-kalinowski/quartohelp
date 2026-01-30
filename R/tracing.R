@@ -13,11 +13,8 @@ register_langfuse_tracing <- function(chat) {
   }
 
   # Get model name from chat object
-  model_name <- tryCatch(
-    chat$.__enclos_env__$private$provider$model,
-    error = function(e) "gpt-5.1"
-  ) %||%
-    "gpt-5.1"
+  model_name <- chat$get_model()
+  provider_name <- chat$get_provider()@name
 
   # Create an environment to store span state across callbacks
   trace_env <- new.env(parent = emptyenv())
@@ -31,7 +28,7 @@ register_langfuse_tracing <- function(chat) {
       attributes = list(
         model = model_name,
         `gen_ai.request.model` = model_name,
-        `gen_ai.system` = "openai",
+        `gen_ai.system` = provider_name,
         `tool.name` = request@name %||% "unknown"
       )
     )
@@ -62,11 +59,8 @@ setup_conversation_tracing <- function(module, session) {
   trace_env <- new.env(parent = emptyenv())
   trace_env$last_input <- NULL
 
-  model_name <- tryCatch(
-    module$client$.__enclos_env__$private$provider$model,
-    error = function(e) "gpt-5.1"
-  ) %||%
-    "gpt-5.1"
+  model_name <- module$client$get_model()
+  provider_name <- module$client$get_provider()@name
 
   shiny::observeEvent(
     module$last_input(),
@@ -89,19 +83,18 @@ setup_conversation_tracing <- function(module, session) {
 
       response_text <- tryCatch(
         {
-          if (is.character(turn)) {
+          txt <- if (is.character(turn)) {
             turn
-          } else if (inherits(turn, "Turn") || inherits(turn, "S7_object")) {
-            txt <- tryCatch(turn@text, error = function(e) NULL)
-            if (is.null(txt) || !nzchar(txt)) {
-              txt <- paste(utils::capture.output(print(turn)), collapse = "\n")
-            }
-            txt
+          } else if (inherits(turn, ellmer::Turn)) {
+            turn@text
           } else {
-            paste(utils::capture.output(print(turn)), collapse = "\n")
+            utils::capture.output(print(turn))
           }
+          paste0(txt, collapse = "\n")
         },
-        error = function(e) "<response>"
+        error = function(e) {
+          paste0("<error generating response>: ", conditionMessage(e))
+        }
       )
 
       input_text <- trace_env$last_input %||% "<user question>"
@@ -110,10 +103,10 @@ setup_conversation_tracing <- function(module, session) {
         name = "llm.conversation",
         attributes = list(
           model = model_name,
-          `gen_ai.request.model` = model_name,
-          `gen_ai.system` = "openai",
-          `gen_ai.prompt` = input_text,
-          `gen_ai.completion` = response_text,
+          gen_ai.request.model = model_name,
+          gen_ai.system = provider_name,
+          gen_ai.prompt = input_text,
+          gen_ai.completion = response_text,
           input = input_text,
           output = response_text
         )
