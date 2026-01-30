@@ -1,0 +1,99 @@
+# Workflow to run evaluations on push to main and publish reports to Posit Connect
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+name: Evaluate and Publish
+
+permissions:
+    contents: read
+
+jobs:
+    evaluate:
+        runs-on: ubuntu-latest
+        name: Run Evaluation and Publish to Connect
+
+        env:
+            GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+            R_KEEP_PKG_SOURCE: yes
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: r-lib/actions/setup-r@v2
+              with:
+                  r-version: release
+                  use-public-rspm: true
+
+            - uses: r-lib/actions/setup-r-dependencies@v2
+              with:
+                  extra-packages: |
+                      local::.
+                      tidyverse/vitals
+                  needs: check
+
+            - name: Download ragnar store
+              env:
+                  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+              run: |
+                  Rscript -e 'quartohelp::update_store()'
+
+            - name: Run Evaluation
+              env:
+                  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+              run: |
+                  Rscript evals/eval_quartohelp.R
+
+            - name: Publish to Posit Connect
+              env:
+                  CONNECT_SERVER: ${{ secrets.CONNECT_SERVER }}
+                  CONNECT_API_KEY: ${{ secrets.CONNECT_API_KEY }}
+              run: |
+                  Rscript -e '
+                    library(rsconnect)
+
+                    # Configure Posit Connect account
+                    rsconnect::addConnectServer(
+                      url = Sys.getenv("CONNECT_SERVER"),
+                      name = "posit-connect"
+                    )
+
+                    rsconnect::connectApiUser(
+                      account = "github-actions",
+                      server = "posit-connect",
+                      apiKey = Sys.getenv("CONNECT_API_KEY")
+                    )
+
+                    # Use a fixed app name so it always updates the same deployment
+                    app_name <- "quartohelp-eval"
+
+                    # Deploy the evaluation bundle as static content
+                    rsconnect::deployApp(
+                      appDir = "./quarto_eval_bundle",
+                      appName = app_name,
+                      appTitle = "Quartohelp Evaluation Report",
+                      server = "posit-connect",
+                      account = "github-actions",
+                      forceUpdate = TRUE,
+                      launch.browser = FALSE
+                    )
+
+                    # Output the URL
+                    cat("DEPLOY_URL=", rsconnect::deployments("./quarto_eval_bundle")$url[1], "\n", 
+                        file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE, sep = "")
+                  '
+
+            - name: Upload evaluation artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: evaluation-bundle
+                  path: quarto_eval_bundle/
+                  retention-days: 30
+
+            - name: Upload evaluation logs
+              uses: actions/upload-artifact@v4
+              with:
+                  name: evaluation-logs
+                  path: logs/
+                  retention-days: 30
