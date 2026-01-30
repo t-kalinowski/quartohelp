@@ -27,7 +27,7 @@ as_quartohelp_chat <- function(
     hosted <-
       Sys.getenv("QUARTOHELP_HOSTED", "FALSE") %in% c("TRUE", "1", "true")
     chat <- ellmer::chat_openai(
-      model = "gpt-5.1",
+      model = "gpt-5.2",
       api_args = if (hosted) list(store = TRUE) else list(),
       params = ellmer::params(
         # # gpt-5.1 default reasoning effort is 'none'
