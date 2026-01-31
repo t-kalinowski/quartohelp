@@ -32,6 +32,7 @@ jobs:
                       local::.
                       tidyverse/vitals
                       any::readr
+                      any::rsconnect
                   needs: check
 
             - name: Download ragnar store
