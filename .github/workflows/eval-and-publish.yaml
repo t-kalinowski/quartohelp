@@ -1,7 +1,7 @@
 # Workflow to run evaluations on push to main and publish reports to Posit Connect
 on:
     push:
-        branches: [main]
+        branches: [main, fix/add-readr-dependency]
     workflow_dispatch:
 
 name: Evaluate and Publish
@@ -31,6 +31,8 @@ jobs:
                   extra-packages: |
                       local::.
                       tidyverse/vitals
+                      any::readr
+                      any::rsconnect
                   needs: check
 
             - name: Download ragnar store
