@@ -91,7 +91,7 @@ as_quartohelp_chat <- function(
 
   # Register OpenTelemetry tracing callbacks for Langfuse if tracing is enabled
   if (otel::is_tracing_enabled()) {
-    register_langfuse_tracing(chat)
+    register_langfuse_tracing(chat, session_id = NULL)
   }
 
   chat

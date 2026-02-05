@@ -5,9 +5,10 @@
 #' "generations".
 #'
 #' @param chat An ellmer::Chat object
+#' @param session_id Optional session identifier for grouping related conversations
 #' @return The chat object, modified with tracing callbacks
 #' @keywords internal
-register_langfuse_tracing <- function(chat) {
+register_langfuse_tracing <- function(chat, session_id = NULL) {
   if (!inherits(chat, "Chat")) {
     stop("`chat` must inherit from 'Chat'.", call. = FALSE)
   }
@@ -19,6 +20,7 @@ register_langfuse_tracing <- function(chat) {
   # Create an environment to store span state across callbacks
   trace_env <- new.env(parent = emptyenv())
   trace_env$current_span <- NULL
+  trace_env$session_id <- session_id
 
   # Register callback for tool requests
   chat$on_tool_request(function(request) {
@@ -28,17 +30,26 @@ register_langfuse_tracing <- function(chat) {
       error = function(e) paste0("<error serializing args>: ", e$message)
     )
 
+    # Build base attributes
+    attrs <- list(
+      model = model_name,
+      `gen_ai.request.model` = model_name,
+      `gen_ai.system` = provider_name,
+      `tool.name` = request@name %||% "unknown",
+      `tool.call.id` = request@id %||% "",
+      `tool.arguments` = as.character(args_json)
+    )
+
+    # Add session ID if available
+    if (!is.null(trace_env$session_id)) {
+      attrs[["session.id"]] <- trace_env$session_id
+      attrs[["langfuse.session.id"]] <- trace_env$session_id
+    }
+
     # Start a span for the tool call
     span <- otel::start_span(
       name = "llm.tool_request",
-      attributes = list(
-        model = model_name,
-        `gen_ai.request.model` = model_name,
-        `gen_ai.system` = provider_name,
-        `tool.name` = request@name %||% "unknown",
-        `tool.call.id` = request@id %||% "",
-        `tool.arguments` = as.character(args_json)
-      )
+      attributes = attrs
     )
     trace_env$current_span <- span
   })
@@ -110,6 +121,9 @@ setup_conversation_tracing <- function(module, session) {
   model_name <- module$client$get_model()
   provider_name <- module$client$get_provider()@name
 
+  # Extract session info from Shiny session
+  session_id <- session$token %||% paste0("session_", as.integer(Sys.time()))
+
   shiny::observeEvent(
     module$last_input(),
     {
@@ -147,17 +161,22 @@ setup_conversation_tracing <- function(module, session) {
 
       input_text <- trace_env$last_input %||% "<user question>"
 
+      # Build attributes
+      attrs <- list(
+        model = model_name,
+        gen_ai.request.model = model_name,
+        gen_ai.system = provider_name,
+        gen_ai.prompt = input_text,
+        gen_ai.completion = response_text,
+        input = input_text,
+        output = response_text,
+        `session.id` = session_id,
+        `langfuse.session.id` = session_id
+      )
+
       span <- otel::start_span(
         name = "llm.conversation",
-        attributes = list(
-          model = model_name,
-          gen_ai.request.model = model_name,
-          gen_ai.system = provider_name,
-          gen_ai.prompt = input_text,
-          gen_ai.completion = response_text,
-          input = input_text,
-          output = response_text
-        )
+        attributes = attrs
       )
       otel::end_span(span)
 
