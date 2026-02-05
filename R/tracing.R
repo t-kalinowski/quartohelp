@@ -22,6 +22,12 @@ register_langfuse_tracing <- function(chat) {
 
   # Register callback for tool requests
   chat$on_tool_request(function(request) {
+    # Serialize tool arguments to JSON
+    args_json <- tryCatch(
+      jsonlite::toJSON(request@arguments, auto_unbox = TRUE, pretty = FALSE),
+      error = function(e) paste0("<error serializing args>: ", e$message)
+    )
+
     # Start a span for the tool call
     span <- otel::start_span(
       name = "llm.tool_request",
@@ -29,7 +35,9 @@ register_langfuse_tracing <- function(chat) {
         model = model_name,
         `gen_ai.request.model` = model_name,
         `gen_ai.system` = provider_name,
-        `tool.name` = request@name %||% "unknown"
+        `tool.name` = request@name %||% "unknown",
+        `tool.call.id` = request@id %||% "",
+        `tool.arguments` = as.character(args_json)
       )
     )
     trace_env$current_span <- span
@@ -38,6 +46,46 @@ register_langfuse_tracing <- function(chat) {
   # Register callback for tool results
   chat$on_tool_result(function(result) {
     if (!is.null(trace_env$current_span)) {
+      # Serialize tool result value
+      result_text <- tryCatch(
+        {
+          val <- result@value
+          if (is.character(val)) {
+            paste0(val, collapse = "\n")
+          } else {
+            as.character(
+              jsonlite::toJSON(val, auto_unbox = TRUE, pretty = TRUE)
+            )
+          }
+        },
+        error = function(e) {
+          tryCatch(
+            paste0(utils::capture.output(print(result@value)), collapse = "\n"),
+            error = function(e2) paste0("<error serializing result>: ", e2$message)
+          )
+        }
+      )
+
+      # Record any error
+      error_text <- tryCatch(
+        {
+          err <- result@error
+          if (is.null(err)) {
+            ""
+          } else if (is.character(err)) {
+            err
+          } else if (inherits(err, "condition")) {
+            conditionMessage(err)
+          } else {
+            as.character(err)
+          }
+        },
+        error = function(e) ""
+      )
+
+      trace_env$current_span$set_attribute("tool.result", result_text)
+      trace_env$current_span$set_attribute("tool.error", error_text)
+
       otel::end_span(trace_env$current_span)
       trace_env$current_span <- NULL
     }
