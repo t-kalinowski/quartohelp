@@ -56,9 +56,10 @@ jobs:
                     library(rsconnect)
 
                     # Configure Posit Connect account
-                    rsconnect::addConnectServer(
+                    rsconnect::addServer(
                       url = Sys.getenv("CONNECT_SERVER"),
-                      name = "posit-connect"
+                      name = "posit-connect",
+                      connect = TRUE
                     )
 
                     rsconnect::connectApiUser(
